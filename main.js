@@ -36,28 +36,28 @@ const Sharp = require(sharpPath);
 
 const dontSelectCorrectAssetMsg = {
   type: 'warning',
-  buttons: ['OK'],
-  titile: 'Unpack Texture Packer Atlas',
-  message: 'Please select a Texture Packer asset at first!',
+  buttons: ['确定'],
+  titile: '解压图集',
+  message: '请选择一个图集文件!',
   defaultId: 0,
   noLink: true
 };
 
 module.exports = {
-  load () {
+  load() {
     // execute when package loaded
   },
 
-  unload () {
+  unload() {
     // execute when package unloaded
   },
 
   // register your ipc messages here
   messages: {
-    'unpack' () {
+    'unpack'() {
       Editor.Metrics.trackEvent({
         category: 'Packages',
-        label: 'unpack-textureatlas',
+        label: '解压图集',
         action: 'Open By Menu'
       }, null);
 
@@ -77,65 +77,64 @@ module.exports = {
         let textureAtlasSubMetas = selectionMeta.getSubMetas();
 
         if (assetInfo.type === 'sprite-atlas'
-            && selectionMeta.type === 'Texture Packer'
-            && textureAtlasSubMetas) {
+          && selectionMeta.type === 'Texture Packer'
+          && textureAtlasSubMetas) {
+
           // In Creator Editor version 2.2.2,use Editor.Project.path 
           let extractedImageSaveFolder = Path.join(Editor.Project.path, 'temp', Path.basenameNoExt(textureAtlasPath) + '_unpack');
           Fs.mkdirsSync(extractedImageSaveFolder);
-
+          Editor.log('保存位置: ' + extractedImageSaveFolder);
           let spriteFrameNames = Object.keys(textureAtlasSubMetas);
           Async.forEach(spriteFrameNames, function (spriteFrameName, next) {
             let spriteFrameObj = textureAtlasSubMetas[spriteFrameName];
             let isRotated = spriteFrameObj.rotated;
             let originalSize = cc.size(spriteFrameObj.rawWidth, spriteFrameObj.rawHeight);
-            let rect = cc.rect(spriteFrameObj.trimX, spriteFrameObj.trimY, spriteFrameObj.width,spriteFrameObj.height);
-            let offset = cc.p(spriteFrameObj.offsetX, spriteFrameObj.offsetY);
+            let rect = cc.rect(spriteFrameObj.trimX, spriteFrameObj.trimY, spriteFrameObj.width, spriteFrameObj.height);
+            let offset = { x: spriteFrameObj.offsetX, y: spriteFrameObj.offsetY };
+            //offset=cc.p(spriteFrameObj.offsetX, spriteFrameObj.offsetY);
             let trimmedLeft = Math.ceil(offset.x + (originalSize.width - rect.width) / 2);
             let trimmedRight = Math.ceil((originalSize.width - rect.width) / 2 - offset.x);
             let trimmedTop = Math.ceil((originalSize.height - rect.height) / 2 - offset.y);
             let trimmedBottom = Math.ceil(offset.y + (originalSize.height - rect.height) / 2);
-
             let sharpCallback = (err) => {
               if (err) {
-                Editor.error('Generating ' + spriteFrameName + ' error occurs, details:' + err);
+                Editor.log('操作 ' + spriteFrameName + ' 出错, 详情:' + err);
               }
-
-              Editor.log(spriteFrameName + ' is generated successfully!');
+              Editor.log(spriteFrameName + ' 成功!');
               next();
             };
 
             let extractedSmallPngSavePath = Path.join(extractedImageSaveFolder, spriteFrameName);
             if (isRotated) {
-              
-              Sharp(textureAtlasPath).extract({left: rect.x, top: rect.y, width: rect.height, height:rect.width})
+              Sharp(textureAtlasPath).extract({ left: rect.x, top: rect.y, width: rect.height, height: rect.width })
                 // .background('rgba(0,0,0,0)') 
-                .extend({top: trimmedTop, bottom: trimmedBottom, left: trimmedLeft, right: trimmedRight})
+                .extend({ top: trimmedTop, bottom: trimmedBottom, left: trimmedLeft, right: trimmedRight })
                 .rotate(270)
                 .toFile(extractedSmallPngSavePath, sharpCallback);
 
             } else {
-              Sharp(textureAtlasPath).extract({left: rect.x, top: rect.y, width: rect.width, height:rect.height})
+              Sharp(textureAtlasPath).extract({ left: rect.x, top: rect.y, width: rect.width, height: rect.height })
                 // .background('rgba(0,0,0,0)') -- In Creator Editor version 2.2.2,background is undefined
-                .extend({top: trimmedTop, bottom: trimmedBottom, left: trimmedLeft, right: trimmedRight})
+                .extend({ top: trimmedTop, bottom: trimmedBottom, left: trimmedLeft, right: trimmedRight })
                 .rotate(0)
                 .toFile(extractedSmallPngSavePath, sharpCallback);
             }
           }, () => {
-            Editor.log(`There are ${spriteFrameNames.length} textures are generated!`);
-            //start importing the generated textures folder
-            Editor.Ipc.sendToMain( 'asset-db:import-assets', [extractedImageSaveFolder], Path.dirname(selectionUrl), true, (err) => {
-              if (err) Editor.log('Importing assets error occurs: details' + err);
+            Editor.log(`解压 ${spriteFrameNames.length} 个资源完成!`);
+            //这里移动资源到工程文件夹内,然而我并不想移动。
+            // //start importing the generated textures folder
+            // Editor.Ipc.sendToMain('asset-db:import-assets', [extractedImageSaveFolder], Path.dirname(selectionUrl), true, (err) => {
+            //   if (err) Editor.log('移动资源出错:' + err);
 
-              Del(extractedImageSaveFolder, { force: true });
-            }, -1);
-
+            //   Del(extractedImageSaveFolder, { force: true });
+            // }, -1);
           }); // end of Async.forEach
 
         } else {
           Editor.Dialog.messageBox(dontSelectCorrectAssetMsg);
         }
       } else {
-         Editor.Dialog.messageBox(dontSelectCorrectAssetMsg);
+        Editor.Dialog.messageBox(dontSelectCorrectAssetMsg);
       }
     },
   },
